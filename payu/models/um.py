@@ -91,7 +91,9 @@ class UnifiedModel(Model):
                                  os.path.join(self.control_path, 'um_env.py'))
         um_vars = um_env.vars
 
-        assert len(self.input_paths) == 1
+        if len(self.input_paths) > 1:
+            print('payu: warning: Only first input path is parsed correctly.')
+            print('               Contact payu developer to fix this.')
 
         # Set paths in environment variables.
         for k in um_vars.keys():

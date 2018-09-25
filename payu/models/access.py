@@ -34,6 +34,7 @@ class Access(Model):
         self.model_type = 'access'
 
         for model in self.expt.models:
+            # Replace default CICE config with ACCESS-specific config
             if model.model_type == 'cice':
                 model.config_files = ['cice_in.nml',
                                       'input_ice.nml']
@@ -51,7 +52,9 @@ class Access(Model):
         if not self.top_level_model:
             return
 
-        cpl_keys = {'cice': ('input_ice.nml', 'coupling_nml', 'runtime0'),
+        # NOTE: At some point, CICE replaced `coupling_nml` with `coupling`.
+        #       Still trying to sort out what happened here...
+        cpl_keys = {'cice': ('input_ice.nml', 'coupling', 'runtime0'),
                     'matm': ('input_atm.nml', 'coupling', 'truntime0')}
 
         # Keep track of this in order to set the oasis runtime.
@@ -210,9 +213,6 @@ class Access(Model):
             o2i_src = os.path.join(mom.work_path, 'o2i.nc')
             o2i_dst = os.path.join(cice5.restart_path, 'o2i.nc')
             shutil.copy2(o2i_src, o2i_dst)
-
-    def set_model_pathnames(self):
-        pass
 
     def set_input_paths(self):
         pass
