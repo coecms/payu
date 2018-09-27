@@ -122,13 +122,16 @@ class Cice(Model):
         else:
             caltype = cal.GREGORIAN
 
-        if self.prior_output_path and not self.expt.repeat_run:
+        if self.prior_restart_path and not self.expt.repeat_run:
 
             # Generate ice.restart_file
-            # TODO: Check the filenames more aggressively
-            try:
-                prior_restart_file = self.get_prior_restart_files()[0]
-            except IndexError:
+            # TODO: better check of restart filename
+            iced_restart_file = None
+            for f in self.get_prior_restart_files():
+                if 'iced.' in f:
+                    iced_restart_file = f
+
+            if iced_restart_file is None:
                 print('payu: error: No restart file available.')
                 sys.exit(errno.ENOENT)
 
@@ -136,14 +139,22 @@ class Cice(Model):
                                         'ice.restart_file')
             with open(res_ptr_path, 'w') as res_ptr:
                 res_dir = self.get_ptr_restart_dir()
-                print(os.path.join(res_dir, prior_restart_file), file=res_ptr)
+                print(os.path.join(res_dir, iced_restart_file), file=res_ptr)
 
             # Update input namelist
             setup_nml['runtype'] = 'continue'
             setup_nml['restart'] = True
 
-            prior_nml_path = os.path.join(self.prior_output_path,
+            prior_nml_path = os.path.join(self.prior_restart_path,
                                           self.ice_nml_fname)
+
+            # With later versions this file exists in the prior restart path,
+            # but this was not always the case, so check, and if not there use
+            # prior output path
+            if not os.path.exists(prior_nml_path):
+                prior_nml_path = os.path.join(self.prior_output_path,
+                                              self.ice_nml_fname)
+
             prior_setup_nml = f90nml.read(prior_nml_path)['setup_nml']
 
             # The total time in seconds since the beginning of the experiment

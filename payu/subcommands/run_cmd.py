@@ -94,7 +94,7 @@ def runcmd(model_type, config_path, init_run, n_runs, lab_path):
     # Update the (possibly unchanged) value of ncpus
     pbs_config['ncpus'] = n_cpus
 
-    # Set memory to use the complete node if unspeficied
+    # Set memory to use the complete node if unspecified
     pbs_mem = pbs_config.get('mem')
     if not pbs_mem:
         if n_cpus > max_cpus_per_node:
@@ -120,8 +120,26 @@ def runscript():
     expt = Experiment(lab)
 
     expt.setup()
-    expt.run()
-    expt.archive()
+
+    n_runs_per_submit = expt.config.get('runspersub', 1)
+
+    subrun = 1
+
+    while subrun <= n_runs_per_submit and expt.n_runs > 0:
+
+        print('nruns: {} nruns_per_submit: {} subrun: {}'
+              ''.format(expt.n_runs, n_runs_per_submit, subrun))
+
+        expt.setup()
+        expt.run()
+        expt.archive()
+
+        # Need to manually increment the run counter if still looping
+        if n_runs_per_submit > 1 and subrun < n_runs_per_submit:
+            expt.counter += 1
+            expt.set_output_paths()
+
+        subrun += 1
 
     if expt.n_runs > 0:
         expt.resubmit()

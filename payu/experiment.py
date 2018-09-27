@@ -53,6 +53,9 @@ class Experiment(object):
         self.postscript = self.config.get('postscript')
         self.repeat_run = self.config.get('repeat', False)
 
+        # Configuration
+        self.expand_shell_vars = True   # TODO: configurable
+
         # Model run time
         self.runtime = None
         if ('calendar' in self.config and
@@ -97,7 +100,8 @@ class Experiment(object):
         self.model_name = self.config.get('model')
         assert self.model_name
 
-        model_fields = ['model', 'exe', 'input', 'ncpus', 'npernode', 'build']
+        model_fields = ['model', 'exe', 'input', 'ncpus', 'npernode', 'build',
+                        'mpthreads']
 
         # TODO: Rename this to self.submodels
         self.models = []
@@ -236,9 +240,6 @@ class Experiment(object):
 
         if self.config.get('hpctoolkit', False):
             envmod.module('load', 'hpctoolkit')
-
-        if self.config.get('scorep', False):
-            envmod.module('load', 'scorep')
 
         if self.debug:
             envmod.module('load', 'totalview')
@@ -482,6 +483,10 @@ class Experiment(object):
         for prof in self.profilers:
             cmd = prof.wrapper(cmd)
 
+        # Expand shell variables inside flags
+        if self.expand_shell_vars:
+            cmd = os.path.expandvars(cmd)
+
         print(cmd)
 
         # Our MVAPICH wrapper does not support working directories
@@ -491,6 +496,8 @@ class Experiment(object):
         else:
             curdir = None
 
+        # NOTE: This may not be necessary, since env seems to be getting
+        # correctly updated.  Need to look into this.
         if env:
             # TODO: Replace with mpirun -x flag inputs
             proc = sp.Popen(shlex.split(cmd), stdout=f_out, stderr=f_err,
@@ -522,7 +529,29 @@ class Experiment(object):
             prof.postprocess()
 
         # TODO: Need a model-specific cleanup method call here
+        # NOTE: This does not appear to catch hanging jobs killed by PBS
         if rc != 0:
+            # Backup logs for failed runs
+            error_log_dir = os.path.join(self.archive_path, 'error_logs')
+            mkdir_p(error_log_dir)
+
+            # NOTE: This is PBS-specific
+            job_id = os.environ.get('PBS_JOBID', '')
+
+            for fname in (self.stdout_fname, self.stderr_fname):
+                src = os.path.join(self.control_path, fname)
+
+                # NOTE: This assumes standard .out/.err extensions
+                dest = os.path.join(error_log_dir,
+                                    fname[:-4] + '.' + job_id + fname[-4:])
+                print(src, dest)
+
+                shutil.copyfile(src, dest)
+
+            # Create the symlink to the logs if it does not exist
+            make_symlink(self.archive_path, self.archive_sym_path)
+
+            # Terminate payu
             sys.exit('payu: Model exited with error code {}; aborting.'
                      ''.format(rc))
 
@@ -783,12 +812,10 @@ class Experiment(object):
 
         # TODO: model outstreams and pbs logs need to be handled separately
         default_job_name = os.path.basename(os.getcwd())
-        short_job_name = self.config.get('jobname', default_job_name)[:15]
+        short_job_name = str(self.config.get('jobname', default_job_name))[:15]
 
         logs = [
             f for f in os.listdir(os.curdir) if os.path.isfile(f) and (
-                f == self.stdout_fname or
-                f == self.stderr_fname or
                 f.startswith(short_job_name + '.o') or
                 f.startswith(short_job_name + '.e') or
                 f.startswith(short_job_name[:13] + '_c.o') or
@@ -798,9 +825,22 @@ class Experiment(object):
             )
         ]
 
-        pbs_log_path = os.path.join(os.curdir, 'pbs_logs')
-        mkdir_p(pbs_log_path)
+        pbs_log_path = os.path.join(self.archive_path, 'pbs_logs')
+        legacy_pbs_log_path = os.path.join(self.control_path, 'pbs_logs')
+
+        if os.path.isdir(legacy_pbs_log_path):
+            # TODO: New path may still exist!
+            assert not os.path.isdir(pbs_log_path)
+            print('payu: Moving pbs_logs to {}'.format(pbs_log_path))
+            shutil.move(legacy_pbs_log_path, pbs_log_path)
+        else:
+            mkdir_p(pbs_log_path)
 
         for f in logs:
             print('Moving log {}'.format(f))
-            os.rename(f, os.path.join(pbs_log_path, f))
+            shutil.move(f, os.path.join(pbs_log_path, f))
+
+        # Remove stdout/err
+        for f in (self.stdout_fname, self.stderr_fname):
+            if os.path.isfile(f):
+                os.remove(f)
