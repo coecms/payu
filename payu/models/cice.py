@@ -29,10 +29,20 @@ from payu.fsops import make_symlink
 from payu.models.model import Model
 from payu.namcouple import Namcouple
 
+import logging
+
+cicelog=logging.getLogger(__name__)
+cicelog.setLevel(logging.ERROR)
+ch = logging.StreamHandler()
+formatter = logging.Formatter('%(name)s - %(levelname)s - %(message)s')
+ch.setFormatter(formatter)
+ch.setLevel(logging.DEBUG)
+cicelog.addHandler(ch)
 
 class Cice(Model):
 
     def __init__(self, expt, name, config):
+        cicelog.debug('called Cice.__init__')
         super(Cice, self).__init__(expt, name, config)
 
         self.model_type = 'cice'
@@ -49,6 +59,7 @@ class Cice(Model):
         self.set_timestep = self.set_local_timestep
 
     def set_model_pathnames(self):
+        cicelog.debug('called Cice.set_model_pathnames')
         super(Cice, self).set_model_pathnames()
 
         self.build_exec_path = os.path.join(self.codebase_path,
@@ -83,6 +94,7 @@ class Cice(Model):
         assert input_path == kmt_input_path
 
     def set_model_output_paths(self):
+        cicelog.debug('called Cice.set_model_output_paths')
         super(Cice, self).set_model_output_paths()
 
         res_dir = self.ice_in['setup_nml']['restart_dir']
@@ -99,19 +111,23 @@ class Cice(Model):
                     self.prior_restart_path = init_res_path
 
     def get_prior_restart_files(self):
+        cicelog.debug('called Cice.get_prior_restart_files')
         restart_files = [f for f in os.listdir(self.prior_restart_path)
                          if f.startswith('iced.')]
         return [sorted(restart_files)[-1]]
 
     def get_ptr_restart_dir(self):
+        cicelog.debug('called Cice.get_ptr_restart_dir')
         return self.ice_in['setup_nml']['restart_dir']
 
     def get_access_ptr_restart_dir(self):
+        cicelog.debug('called Cice.get_access_ptr_restart_dir')
         # The ACCESS build of CICE assumes that restart_dir is 'RESTART'
         # TODO: Move to ACCESS driver
         return '.'
 
     def setup(self):
+        cicelog.debug('called Cice.setup')
         super(Cice, self).setup()
 
         setup_nml = self.ice_in['setup_nml']
@@ -152,8 +168,18 @@ class Cice(Model):
             # but this was not always the case, so check, and if not there use
             # prior output path
             if not os.path.exists(prior_nml_path):
-                prior_nml_path = os.path.join(self.prior_output_path,
+                cicelog.info("prior nml path {} does not exist".format(
+                    prior_nml_path))
+                try:
+                    prior_nml_path = os.path.join(self.prior_output_path,
                                               self.ice_nml_fname)
+                except AttributeError as e:
+                    print("Failed to join {} and {}".format(
+                        self.prior_output_path, self.ice_nml_fname))
+                    print("Info: self.expt: {}".format(self.expt))
+                    print("self.expt.prior_output_path: {}".format(
+                        self.expt.prior_output_path))
+                    raise e
 
             prior_setup_nml = f90nml.read(prior_nml_path)['setup_nml']
 
@@ -199,6 +225,7 @@ class Cice(Model):
         self.ice_in.write(nml_path, force=True)
 
     def set_local_timestep(self, t_step):
+        cicelog.debug('called Cice.set_local_timestep')
         dt = self.ice_in['setup_nml']['dt']
         npt = self.ice_in['setup_nml']['npt']
 
@@ -209,6 +236,7 @@ class Cice(Model):
         self.ice_in.write(ice_in_path, force=True)
 
     def set_access_timestep(self, t_step):
+        cicelog.debug('called Cice.set_access_timestep')
         # TODO: Figure out some way to move this to the ACCESS driver
         # Re-read ice timestep and move this over there
         self.set_local_timestep(t_step)
@@ -221,6 +249,7 @@ class Cice(Model):
         input_ice.write(input_ice_path, force=True)
 
     def set_oasis_timestep(self, t_step):
+        cicelog.debug('called Cice.set_oasis_timestep')
         # TODO: Move over to access driver
         for model in self.expt.models:
             if model.model_type == 'oasis':
@@ -230,6 +259,7 @@ class Cice(Model):
                 namcpl.write()
 
     def archive(self, **kwargs):
+        cicelog.debug('called Cice.archive')
 
         for f in os.listdir(self.work_input_path):
             f_path = os.path.join(self.work_input_path, f)
@@ -239,9 +269,11 @@ class Cice(Model):
         os.rename(self.work_restart_path, self.restart_path)
 
     def collate(self):
+        cicelog.debug('called Cice.collate')
         pass
 
     def link_restart(self, fpath):
+        cicelog.debug('called Cice.link_restart')
 
         input_work_path = os.path.join(self.work_path, fpath)
 

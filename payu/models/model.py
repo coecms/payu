@@ -20,11 +20,22 @@ import subprocess as sp
 from payu import envmod
 from payu.fsops import make_symlink, mkdir_p
 
+import logging
+
+modellog=logging.getLogger(__name__)
+modellog.setLevel(logging.ERROR)
+ch = logging.StreamHandler()
+formatter = logging.Formatter('%(name)s - %(levelname)s - %(message)s')
+ch.setFormatter(formatter)
+ch.setLevel(logging.DEBUG)
+modellog.addHandler(ch)
 
 class Model(object):
     """Abstract model class"""
 
     def __init__(self, expt, model_name, model_config):
+
+        modellog.debug('Called Model.__init__')
 
         # Inherit experiment configuration
         self.expt = expt
@@ -63,6 +74,8 @@ class Model(object):
 
     def set_model_pathnames(self):
 
+        modellog.debug('Called Model.set_model_pathnames')
+
         self.control_path = self.expt.control_path
         self.input_basepath = self.expt.lab.input_basepath
         self.work_path = self.expt.work_path
@@ -89,6 +102,8 @@ class Model(object):
             self.exec_path = None
 
     def set_input_paths(self):
+
+        modellog.debug('Called Model.set_input_paths')
 
         if len(self.expt.models) == 1:
             input_dirs = self.expt.config.get('input')
@@ -118,6 +133,8 @@ class Model(object):
 
     def set_model_output_paths(self):
 
+        modellog.debug('called Model.set_model_output_paths')
+
         self.output_path = self.expt.output_path
         self.restart_path = self.expt.restart_path
 
@@ -142,9 +159,11 @@ class Model(object):
                                                        self.name)
 
     def get_prior_restart_files(self):
+        modellog.debug('called Model.get_prior_restart_files')
         return os.listdir(self.prior_restart_path)
 
     def setup(self):
+        modellog.debug('called Model.setup')
 
         # Create experiment directory structure
         mkdir_p(self.work_input_path)
@@ -204,6 +223,7 @@ class Model(object):
         raise NotImplementedError
 
     def build_model(self):
+        modellog.debug('called Model.build_model')
 
         if not self.repo_url:
             return
@@ -260,6 +280,7 @@ class Model(object):
         os.chdir(curdir)
 
     def get_codebase(self):
+        modellog.debug('called Model.get_codebase')
 
         if not self.repo_url:
             return
@@ -283,6 +304,7 @@ class Model(object):
         os.chdir(curdir)
 
     def profile(self):
+        modellog.debug('called Model.profile')
         # TODO: Replace with call to "profile" drivers
 
         if self.expt.config.get('hpctoolkit', False) and self.exec_name:

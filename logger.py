@@ -1,0 +1,7 @@
+cicelog=logging.getLogger(__name__)
+cicelog.setLevel(logging.DEBUG)
+ch = logging.StreamHandler()
+formatter = logging.Formatter('%(name)s - %(levelname)s - %(message)s')
+ch.setFormatter(formatter)
+ch.setLevel(logging.DEBUG)
+cicelog.addHandler(ch)

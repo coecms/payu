@@ -36,10 +36,20 @@ default_archive_url = 'dc.nci.org.au'
 default_restart_freq = 5
 default_restart_history = 5
 
+import logging
+
+exptlog=logging.getLogger(__name__)
+exptlog.setLevel(logging.ERROR)
+ch = logging.StreamHandler()
+formatter = logging.Formatter('%(name)s - %(levelname)s - %(message)s')
+ch.setFormatter(formatter)
+ch.setLevel(logging.DEBUG)
+exptlog.addHandler(ch)
 
 class Experiment(object):
 
     def __init__(self, lab):
+        exptlog.debug('called Experiment.__init__')
         self.lab = lab
 
         # TODO: replace with dict, check versions via key-value pairs
@@ -96,6 +106,7 @@ class Experiment(object):
             self.runlog = None
 
     def init_models(self):
+        exptlog.debug('called Experiment.init_models')
 
         self.model_name = self.config.get('model')
         assert self.model_name
@@ -134,6 +145,7 @@ class Experiment(object):
             self.model = None
 
     def set_counters(self):
+        exptlog.debug('called Experiment.set_counters')
         # Assume that ``set_paths`` has already been called
         assert self.archive_path
 
@@ -182,6 +194,7 @@ class Experiment(object):
                     self.counter = 0
 
     def set_stacksize(self, stacksize):
+        exptlog.debug('called Experiment.set_stacksize')
 
         if stacksize == 'unlimited':
             stacksize = resource.RLIM_INFINITY
@@ -192,6 +205,7 @@ class Experiment(object):
                            (stacksize, resource.RLIM_INFINITY))
 
     def load_modules(self):
+        exptlog.debug('called Experiment.load_modules')
 
         # Scheduler
         sched_modname = self.config.get('scheduler', 'pbs')
@@ -245,6 +259,7 @@ class Experiment(object):
             envmod.module('load', 'totalview')
 
     def set_expt_pathnames(self):
+        exptlog.debug('called Experiment.set_expt_pathnames')
 
         # Local "control" path
         self.control_path = self.config.get('control', os.getcwd())
@@ -270,6 +285,7 @@ class Experiment(object):
         self.stderr_fname = self.lab.model_type + '.err'
 
     def set_output_paths(self):
+        exptlog.debug('called Experiment.set_output_paths')
 
         # Local archive paths
 
@@ -287,6 +303,8 @@ class Experiment(object):
         if os.path.exists(prior_output_path):
             self.prior_output_path = prior_output_path
         else:
+            exptlog.info('prior output path {} does not exist'.format(
+                prior_output_path))
             self.prior_output_path = None
 
         # Local restart paths
@@ -307,6 +325,7 @@ class Experiment(object):
             model.set_model_output_paths()
 
     def build_model(self):
+        exptlog.debug('called Experiment.build_model')
 
         self.load_modules()
 
@@ -317,6 +336,7 @@ class Experiment(object):
             model.build_model()
 
     def setup(self, force_archive=False):
+        exptlog.debug('called Experiment.setup')
 
         # Confirm that no output path already exists
         if os.path.exists(self.output_path):
@@ -369,6 +389,7 @@ class Experiment(object):
             prof.setup()
 
     def run(self, *user_flags):
+        exptlog.debug('called Experiment.run')
 
         self.load_modules()
 
@@ -578,6 +599,7 @@ class Experiment(object):
             self.run_userscript(run_script)
 
     def archive(self):
+        exptlog.debug('called Experiment.archive')
 
         if not self.config.get('archive', True):
             print('payu: not archiving due to config.yaml setting.')
@@ -646,15 +668,18 @@ class Experiment(object):
             self.run_userscript(archive_script)
 
     def collate(self):
+        exptlog.debug('called Experiment.collate')
 
         for model in self.models:
             model.collate()
 
     def profile(self):
+        exptlog.debug('called Experiment.profile')
         for model in self.models:
             model.profile()
 
     def postprocess(self):
+        exptlog.debug('called Experiment.postprocess')
         """Submit a postprocessing script after collation"""
         assert self.postscript
 
@@ -666,6 +691,7 @@ class Experiment(object):
 
     def remote_archive(self, config_name, archive_url=None,
                        max_rsync_attempts=1, rsync_protocol=None):
+        exptlog.debug('called Experiment.remote_archive')
 
         if not archive_url:
             archive_url = default_archive_url
@@ -736,12 +762,14 @@ class Experiment(object):
             os.remove(res_tar_path)
 
     def resubmit(self):
+        exptlog.debug('called Experiment.resubmit')
         next_run = self.counter + 1
         cmd = 'payu run -i {} -n {}'.format(next_run, self.n_runs)
         cmd = shlex.split(cmd)
         sp.call(cmd)
 
     def run_userscript(self, script_cmd):
+        exptlog.debug('called Experiment.run_userscript')
 
         # First try to interpret the argument as a full command:
         try:
@@ -785,6 +813,7 @@ class Experiment(object):
                 raise
 
     def sweep(self, hard_sweep=False):
+        exptlog.debug('called Experiment.sweep')
         # TODO: Fix the IO race conditions!
 
         if hard_sweep:
