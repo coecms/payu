@@ -22,11 +22,19 @@ from payu.fsops import make_symlink
 from payu.models.model import Model
 import payu.calendar as cal
 
+import logging
+aesmlog=logging.getLogger(__name__)
+aesmlog.setLevel(logging.ERROR)
+ch = logging.StreamHandler()
+formatter = logging.Formatter('%(name)s - %(levelname)s - %(message)s')
+ch.setFormatter(formatter)
+ch.setLevel(logging.DEBUG)
+aesmlog.addHandler(ch)
 
-class Access(Model):
+class AccessESM(Model):
 
     def __init__(self, expt, name, config):
-        super(Access, self).__init__(expt, name, config)
+        super(AccessESM, self).__init__(expt, name, config)
 
         self.model_type = 'access'
 
@@ -81,10 +89,19 @@ class Access(Model):
                 # interested in:
                 #   1. start date of run
                 #   2. total runtime of all previous runs.
-                if model.prior_output_path and not self.expt.repeat_run:
+                if model.prior_restart_path and not self.expt.repeat_run:
 
-                    prior_cpl_fpath = os.path.join(model.prior_output_path,
+                    prior_cpl_fpath = os.path.join(model.prior_restart_path,
                                                    cpl_fname)
+                    # With later versions this file exists in the prior restart
+                    # path, but this was not always the case, so check, and if
+                    # not there use prior output path
+                    if not os.path.exists(prior_cpl_fpath):
+                        aesmlog.info('prior_cpl_fpath {} does not exist'.format(
+                            prior_cpl_fpath))
+                        prior_cpl_fpath = os.path.join(model.prior_output_path,
+                                                       cpl_fname)
+
                     prior_cpl_nml = f90nml.read(prior_cpl_fpath)
                     cpl_nml_grp = prior_cpl_nml[cpl_group]
 
@@ -156,3 +173,25 @@ class Access(Model):
 
                     if os.path.exists(f_src):
                         shutil.copy2(f_src, f_dst)
+
+            # Copy configs from work path to restart
+            for f_name in model.config_files:
+                f_src = os.path.join(model.work_path, f_name)
+                f_dst = os.path.join(model.restart_path, f_name)
+
+                if os.path.exists(f_src):
+                    shutil.copy2(f_src, f_dst)
+
+        cice5 = None
+        mom = None
+        for model in self.expt.models:
+            if model.model_type == 'cice5':
+                cice5 = model
+            elif model.model_type == 'mom':
+                mom = model
+
+        # Copy restart from ocean into ice area.
+        if cice5 is not None and mom is not None:
+            o2i_src = os.path.join(mom.work_path, 'o2i.nc')
+            o2i_dst = os.path.join(cice5.restart_path, 'o2i.nc')
+            shutil.copy2(o2i_src, o2i_dst)
